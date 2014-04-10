@@ -26,16 +26,24 @@ our $pi = atan2(1,1) * 4;
 
 my $mech = WWW::Mechanize->new(stack_depth => 0, quiet => 0);
 
-my $uri;
-#URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_day.geojson");
+# select your details: http://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
 
-use URI::file;
-$uri = URI::file->new("$ENV{'HOME'}/git/sw/usgstools/1.0_day.geojson");
+my $uri;
+#$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_day.geojson");
+$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_week.geojson");
+
+#use URI::file;
+#$uri = URI::file->new("$ENV{'HOME'}/git/sw/usgstools/1.0_day.geojson");
 
 my $req = HTTP::Request->new( 'GET', $uri );
-# $req->header('Content-Type: application/x-www-form-urlencoded');
 
-$mech->request($req);
+eval {
+	$mech->request($req);
+};
+if ($@) {
+	printf STDERR "request failure: %s\n", $@;
+	exit(1);
+}
 
 my $json = JSON->new->allow_nonref;
 
@@ -74,8 +82,8 @@ foreach my $eq (@{$coll}) {
 	$time = strftime "%a %b %e %H:%M:%S %Y", localtime($time);
 
 	my $geom = $eq->{geometry}->{coordinates};
-	#my ($eqlat,$eqlon,$eqdepth) = @{$geom};
 	my ($eqlon,$eqlat,$eqdepth) = @{$geom};
+
 
 	my $distance = sprintf "%0.2fmi", distance($lat, $lon, $eqlat, $eqlon);
 	$place =~ m/^(.*[[:space:]]*)([0-9]+)km(.*)$/;
@@ -87,8 +95,10 @@ foreach my $eq (@{$coll}) {
 		my $plmi = $plkm * 0.63;
 		$place = $plpre.$plmi."mi".$plpost;
 	}
+
+	my $id = ""; # $eq->{id};
 	
-	printf STDERR "Quake at %s\nmagnitude: %s\ntime: %s\ndistance: %s\n\n", $place, $mag, $time, $distance;
+	printf STDERR "Quake %s at %s\nmagnitude: %s\ntime: %s\ndistance: %s\n\n", $id, $place, $mag, $time, $distance;
 	if (0) {
 		print STDERR "       ";
 		dumpit($eq, '       ',' ');
