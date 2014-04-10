@@ -21,22 +21,22 @@ Abbreviated example output is below:
 Quake usc000pe90 at 11.26mi SSW of Guthrie, Oklahoma
 magnitude: 2.8
 time: Thu Apr 10 08:18:47 2014
-distance: 2472.28mi
+distance: 15.37mi
 
 Quake usc000pdzw at 10.63mi SW of Guthrie, Oklahoma
 magnitude: 3.7
 time: Thu Apr 10 03:19:43 2014
-distance: 2473.10mi
+distance: 16.23mi
 
 Quake usc000pdy4 at 10mi SSW of Guthrie, Oklahoma
 magnitude: 4.1
 time: Thu Apr 10 02:33:57 2014
-distance: 2472.82mi
+distance: 16.25mi
 
 Quake usc000pdwa at 1.26mi ESE of Perry, Oklahoma
 magnitude: 2.6
 time: Thu Apr 10 01:40:52 2014
-distance: 2506.76mi
+distance: 51.99mi
 
 ...
 </pre>
