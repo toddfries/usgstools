@@ -18,7 +18,7 @@ use strict;
 use warnings;
 
 use JSON;
-use Math::Trig qw(:pi :radial deg2rad acos rad2deg);
+use Math::Trig;
 use POSIX qw(strftime);
 use URI;
 use WWW::Mechanize;
