@@ -17,6 +17,7 @@ Parses the one week feed to get the distance of quakes from me in Oklahoma.
 
 Abbreviated example output is below:
 
+<pre>
 Quake usc000pe90 at 11.26mi SSW of Guthrie, Oklahoma
 magnitude: 2.8
 time: Thu Apr 10 08:18:47 2014
@@ -38,6 +39,7 @@ time: Thu Apr 10 01:40:52 2014
 distance: 2506.76mi
 
 ...
+</pre>
 
 
 If you find this app useful, I accept bitcoin donations at:
