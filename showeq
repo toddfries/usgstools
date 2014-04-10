@@ -1,0 +1,126 @@
+#!/usr/bin/perl
+
+# Copyright (c) 2014 Todd T. Fries <todd@fries.net>
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+use strict;
+use warnings;
+
+use JSON;
+use URI;
+use WWW::Mechanize;
+use POSIX qw(strftime);
+
+my $mech = WWW::Mechanize->new(stack_depth => 0, quiet => 0);
+
+my $uri;
+#URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_day.geojson");
+
+use URI::file;
+$uri = URI::file->new("$ENV{'HOME'}/git/sw/usgstools/1.0_day.geojson");
+
+my $req = HTTP::Request->new( 'GET', $uri );
+# $req->header('Content-Type: application/x-www-form-urlencoded');
+
+$mech->request($req);
+
+my $json = JSON->new->allow_nonref;
+
+my $info = $json->decode( $mech->content );
+
+if (!defined($info)) {
+	print STDERR "No eq info retrieved..\n";
+	exit(1);
+}
+
+my $coll = $info->{features};
+
+if (!defined($coll)) {
+	print STDERR "No Collection retrieved...\n";
+	exit(1);
+}
+
+foreach my $eq (@{$coll}) {
+	my $place = $eq->{properties}->{place};
+	if (! ($place =~ /Oklahoma/)) {
+		next;
+	}
+	if (!defined($place)) {
+		next;
+	}
+	my $mag = $eq->{properties}->{mag};
+	my $time = $eq->{properties}->{time};
+	$time *= .001;
+	$time = strftime "%a %b %e %H:%M:%S %Y", localtime($time);
+	printf STDERR "Quake location: %s, magnitude: %s, time: %s\n", $place, $mag, $time;
+	#print STDERR "       ";
+	#dumpit($eq, '       ',' ');
+}
+
+sub dumpit
+{
+	my ($info, $indent, $oindent) = @_;
+
+	my $ai = "    ";
+
+	if (!defined($indent)) {
+		$indent = "";
+	}
+	if (!defined($oindent)) {
+		$oindent = "";
+	}
+	if (!defined($info)) {
+		$info = "<undef>";
+	}
+
+	my $type = ref($info);
+
+	unless ($type) {
+		printf STDERR " %s\n", $info;
+		return;
+	}
+
+	if ($type eq "ARRAY") {
+		printf STDERR "ARRAY (\n";
+		foreach my $a (@{$info}) {
+			print STDERR $indent;
+			dumpit($a, $indent.$ai, $indent);
+		}
+		printf STDERR "%s),\n", substr($indent,0,length($indent)-5);;
+		return;
+	}
+	if ($type eq "HASH") {
+		print STDERR "HASH {";
+		my @keylist = keys %{$info};
+		if (! @keylist || $#keylist < 0) {
+			print STDERR " <empty> }\n";
+			return;
+		}
+		print STDERR "\n";
+		foreach my $k (keys %{$info}) {
+			printf STDERR "%s '%s' => ", $indent.$ai, $k;
+			dumpit($info->{$k}, $indent.$ai.$ai, $indent);
+		}
+		printf STDERR "%s},\n", substr($indent,0,length($indent)-5);;
+		return;
+	}
+	use Data::Dumper;
+	#$Data::Dumepr::Indent = 3;
+	$Data::Dumper::Purity = 1;
+	$Data::Dumper::Pad = $indent;
+	$Data::Dumper::Deepcopy = 1;
+	$Data::Dumper::Deparse = 1;
+	print STDERR Data::Dumper->Dump([$type], [qw(type)]);
+	return;
+}
