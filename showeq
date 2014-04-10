@@ -63,7 +63,7 @@ foreach my $eq (@{$coll}) {
 	my $time = $eq->{properties}->{time};
 	$time *= .001;
 	$time = strftime "%a %b %e %H:%M:%S %Y", localtime($time);
-	printf STDERR "Quake location: %s, magnitude: %s, time: %s\n", $place, $mag, $time;
+	printf STDERR "Quake at %s\nmagnitude: %s\ntime: %s\n\n", $place, $mag, $time;
 	#print STDERR "       ";
 	#dumpit($eq, '       ',' ');
 }
