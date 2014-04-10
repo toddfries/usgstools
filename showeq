@@ -22,6 +22,8 @@ use URI;
 use WWW::Mechanize;
 use POSIX qw(strftime);
 
+our $pi = atan2(1,1) * 4;
+
 my $mech = WWW::Mechanize->new(stack_depth => 0, quiet => 0);
 
 my $uri;
@@ -51,10 +53,17 @@ if (!defined($coll)) {
 	exit(1);
 }
 
+my $regex = $ARGV[0];
+
+my $lat = 35.5635277;
+my $lon = -97.5437221;
+
 foreach my $eq (@{$coll}) {
 	my $place = $eq->{properties}->{place};
-	if (! ($place =~ /Oklahoma/)) {
-		next;
+	if (defined($regex)) {
+		if (! ($place =~ /$regex/)) {
+			next;
+		}
 	}
 	if (!defined($place)) {
 		next;
@@ -63,9 +72,27 @@ foreach my $eq (@{$coll}) {
 	my $time = $eq->{properties}->{time};
 	$time *= .001;
 	$time = strftime "%a %b %e %H:%M:%S %Y", localtime($time);
-	printf STDERR "Quake at %s\nmagnitude: %s\ntime: %s\n\n", $place, $mag, $time;
-	#print STDERR "       ";
-	#dumpit($eq, '       ',' ');
+
+	my $geom = $eq->{geometry}->{coordinates};
+	#my ($eqlat,$eqlon,$eqdepth) = @{$geom};
+	my ($eqlon,$eqlat,$eqdepth) = @{$geom};
+
+	my $distance = sprintf "%0.2fmi", distance($lat, $lon, $eqlat, $eqlon);
+	$place =~ m/^(.*[[:space:]]*)([0-9]+)km(.*)$/;
+	my ($plpre,$plkm,$plpost) = ($1,$2,$3);
+	if (defined($plkm)) {
+		if (!defined($plpre)) {
+			$plpre="";
+		}
+		my $plmi = $plkm * 0.63;
+		$place = $plpre.$plmi."mi".$plpost;
+	}
+	
+	printf STDERR "Quake at %s\nmagnitude: %s\ntime: %s\ndistance: %s\n\n", $place, $mag, $time, $distance;
+	if (0) {
+		print STDERR "       ";
+		dumpit($eq, '       ',' ');
+	}
 }
 
 sub dumpit
@@ -116,11 +143,50 @@ sub dumpit
 		return;
 	}
 	use Data::Dumper;
-	#$Data::Dumepr::Indent = 3;
 	$Data::Dumper::Purity = 1;
 	$Data::Dumper::Pad = $indent;
 	$Data::Dumper::Deepcopy = 1;
 	$Data::Dumper::Deparse = 1;
 	print STDERR Data::Dumper->Dump([$type], [qw(type)]);
 	return;
+}
+sub
+distance
+{
+	my ($lat1, $long1, $lat2, $long2, $unit) = @_;
+	my $theta = $long1 - $long2;
+	my $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+	$dist = acos($dist);
+	$dist = rad2deg($dist);
+	$dist = $dist * 60 * 1.1515;
+	if (!defined($unit)) {
+		$unit = "";
+	}
+	if ($unit eq "K") {
+		$dist = $dist * 1.609344;
+	} elsif ($unit eq "N") {
+		$dist = $dist * 0.8684;
+	}
+	return ($dist);
+}
+
+sub
+acos
+{
+	my ($rad) = @_;
+	return atan2(sqrt(1 - $rad**2), $rad);
+}
+
+sub
+deg2rad
+{
+	my ($deg) = @_;
+	return ($deg * $pi / 180);
+}
+
+sub
+rad2deg
+{
+	my ($rad) = @_;
+	return ($rad * 180 / $pi);
 }
