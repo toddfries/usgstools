@@ -18,13 +18,12 @@ use strict;
 use warnings;
 
 use JSON;
+use Math::Trig qw(:pi :radial deg2rad acos rad2deg);
+use POSIX qw(strftime);
 use URI;
 use WWW::Mechanize;
-use POSIX qw(strftime);
 
 use OpenBSD::Getopt;
-
-our $pi = atan2(1,1) * 4;
 
 my $mech = WWW::Mechanize->new(stack_depth => 0, quiet => 0);
 
@@ -185,25 +184,4 @@ distance
 		$dist = $dist * 0.8684;
 	}
 	return ($dist);
-}
-
-sub
-acos
-{
-	my ($rad) = @_;
-	return atan2(sqrt(1 - $rad**2), $rad);
-}
-
-sub
-deg2rad
-{
-	my ($deg) = @_;
-	return ($deg * $pi / 180);
-}
-
-sub
-rad2deg
-{
-	my ($rad) = @_;
-	return ($rad * 180 / $pi);
 }
