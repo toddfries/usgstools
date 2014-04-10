@@ -96,7 +96,7 @@ foreach my $eq (@{$coll}) {
 		$place = $plpre.$plmi."mi".$plpost;
 	}
 
-	my $id = ""; # $eq->{id};
+	my $id = $eq->{id};
 	
 	printf STDERR "Quake %s at %s\nmagnitude: %s\ntime: %s\ndistance: %s\n\n", $id, $place, $mag, $time, $distance;
 	if (0) {
