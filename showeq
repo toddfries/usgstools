@@ -32,7 +32,7 @@ my $mech = WWW::Mechanize->new(stack_depth => 0, quiet => 0);
 my $uri;
 #$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_day.geojson");
 $uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_week.geojson");
-$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_month.geojson");
+#$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_month.geojson");
 #$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson");
 
 #use URI::file;
