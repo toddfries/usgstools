@@ -32,6 +32,8 @@ my $mech = WWW::Mechanize->new(stack_depth => 0, quiet => 0);
 my $uri;
 #$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_day.geojson");
 $uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_week.geojson");
+#$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_month.geojson");
+#$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson");
 
 #use URI::file;
 #$uri = URI::file->new("$ENV{'HOME'}/git/sw/usgstools/1.0_day.geojson");
@@ -104,7 +106,7 @@ foreach my $eq (@{$coll}) {
 
 	my $id = $eq->{id};
 	
-	printf STDERR "Quake %s at %s\nmagnitude: %s\ntime: %s\ndistance: %s\n\n", $id, $place, $mag, $time, $distance;
+	printf STDERR "Quake %s %s\nmagnitude: %s\ntime: %s\ndistance: %s\n\n", $id, $place, $mag, $time, $distance;
 	if ($opt_v > 0) {
 		print STDERR "       ";
 		dumpit($eq, '       ',' ');
