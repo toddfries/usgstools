@@ -27,57 +27,70 @@ use OpenBSD::Getopt;
 
 my $mech = WWW::Mechanize->new(stack_depth => 0, quiet => 0);
 
-# select your details: http://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
-
-my $uri;
-#$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_day.geojson");
-$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_week.geojson");
-#$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/1.0_month.geojson");
-#$uri = URI->new("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson");
-
-#use URI::file;
-#$uri = URI::file->new("$ENV{'HOME'}/git/sw/usgstools/1.0_day.geojson");
-
-my $req = HTTP::Request->new( 'GET', $uri );
-
-eval {
-	$mech->request($req);
-};
-if ($@) {
-	printf STDERR "request failure: %s\n", $@;
-	exit(1);
-}
-
-my $json = JSON->new->allow_nonref;
-
-my $info = $json->decode( $mech->content );
-
-if (!defined($info)) {
-	print STDERR "No eq info retrieved..\n";
-	exit(1);
-}
-
-my $coll = $info->{features};
-
-if (!defined($coll)) {
-	print STDERR "No Collection retrieved...\n";
-	exit(1);
-}
 our $opt_a;     # Lattitude
 our $opt_o;     # Longitude
 our $opt_v = 0; # verbose
+our $opt_f;	# feed name
 
-getopts('a:o:v');
+getopts('a:f:o:v');
 
 my $regex = $ARGV[0];
 
 my $lat = $opt_a;
 my $lon = $opt_o;
 
+# select your details: http://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
+
+my @feeds=("1.0_week");
+if (defined($opt_f)) {
+	@feeds=split(/,/,$opt_f);
+}
+
+# $feed = {all,1.0,2.5,4.5,significant}_{hour,day,week,month}
+my $uri;
+my %earthquakes;
+
+foreach my $f (@feeds) {
+	# XXX cache:
+	#   *_{hour,day,week} updated every 5min
+	#   *_month updated every 15min
+	$uri = URI->new("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${f}.geojson");
+
+	my $req = HTTP::Request->new( 'GET', $uri );
+
+	eval {
+		$mech->request($req);
+	};
+	if ($@) {
+		printf STDERR "request failure: %s\n", $@;
+		next;
+	}
+
+	my $json = JSON->new->allow_nonref;
+
+	my $info = $json->decode( $mech->content );
+
+	if (!defined($info)) {
+		print STDERR "No eq info retrieved..\n";
+		next;
+	}
+
+	my $coll = $info->{features};
+
+	if (!defined($coll)) {
+		print STDERR "No Collection retrieved...\n";
+		next;
+	}
+	foreach my $eq (@{$coll}) {
+		$earthquakes{$eq->{id}}=$eq;
+	}
+		
+}
 printf STDOUT "%24s|%10s|%4s|%9s|%s\n", "Date", "Eq Id", "Mag", "From Home",
     "Location";
 
-foreach my $eq (@{$coll}) {
+foreach my $eqid (sort {$b cmp $a} keys %earthquakes) {
+	my $eq = $earthquakes{$eqid};
 	my $place = $eq->{properties}->{place};
 	if (defined($regex)) {
 		if (! ($place =~ /$regex/)) {
