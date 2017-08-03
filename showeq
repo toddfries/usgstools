@@ -34,6 +34,15 @@ our $opt_f;	# feed name
 
 getopts('a:f:o:v');
 
+our $cachedir=$ENV{'HOME'}."/.cache/usgs.geojson";
+
+if (! -d $ENV{'HOME'}."/.cache" ) {
+	mkdir($ENV{'HOME'}."/.cache");
+}
+if (! -d $cachedir ) {
+	mkdir($cachedir);
+}
+
 my $regex = $ARGV[0];
 
 my $lat = $opt_a;
@@ -47,28 +56,16 @@ if (defined($opt_f)) {
 }
 
 # $feed = {all,1.0,2.5,4.5,significant}_{hour,day,week,month}
-my $uri;
-my %earthquakes;
+our %earthquakes;
+our $json = JSON->new->allow_nonref;
 
 foreach my $f (@feeds) {
 	# XXX cache:
 	#   *_{hour,day,week} updated every 5min
 	#   *_month updated every 15min
-	$uri = URI->new("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${f}.geojson");
+	my $content = getfeed($f);
 
-	my $req = HTTP::Request->new( 'GET', $uri );
-
-	eval {
-		$mech->request($req);
-	};
-	if ($@) {
-		printf STDERR "request failure: %s\n", $@;
-		next;
-	}
-
-	my $json = JSON->new->allow_nonref;
-
-	my $info = $json->decode( $mech->content );
+	my $info = $json->decode( $content );
 
 	if (!defined($info)) {
 		print STDERR "No eq info retrieved..\n";
@@ -203,4 +200,41 @@ distance
 		$dist = $dist * 0.8684;
 	}
 	return ($dist);
+}
+sub getfeed {
+	my ($f) = @_;
+	my $cachefile = $cachedir."/".$f;
+
+	my $uri;
+	my $content = "";
+	if (-f $cachefile) {
+		# if $cachefile is newer than 5mins ago
+		my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+                   $atime,$mtime,$ctime,$blksize,$blocks) = stat($cachefile);
+		if ($mtime > (time()-5*60)) {
+			open(CF,$cachefile);
+			while (<CF>) {
+				$content .= $_;
+			}
+			close(CF);
+			return $content;
+		}
+	}
+
+	$uri = URI->new("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${f}.geojson");
+
+	my $req = HTTP::Request->new( 'GET', $uri );
+
+	eval {
+		$mech->request($req);
+	};
+	if ($@) {
+		printf STDERR "request failure: %s\n", $@;
+		next;
+	}
+	$content = $mech->content();
+	open(CF, ">", $cachefile);
+	print CF $content;
+	close(CF);
+	return $content;
 }
