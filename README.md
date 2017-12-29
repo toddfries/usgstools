@@ -97,4 +97,4 @@ Wed Jul  5 21:36:12 2017|us10009741| 2.6|  82.58mi|  4.41mi SSW of Medford, Okla
 
 If you find this app useful, I accept bitcoin donations at:
 
-[1H1t15fNXtNEgZQBbdVimqZJ4xgpqfAvS](bitcoin:1H1t15fNXtNEgZQBbdVimqZJ4xgpqfAvSd)
+   bitcoin:1H1t15fNXtNEgZQBbdVimqZJ4xgpqfAvSd
