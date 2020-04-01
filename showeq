@@ -83,10 +83,18 @@ foreach my $f (@feeds) {
 	}
 		
 }
-printf STDOUT "%24s|%10s|%4s|%9s|%s\n", "Date", "Eq Id", "Mag", "From Home",
+printf STDOUT "%24s|%12s|%4s|%9s|%s\n", "Date", "Eq Id", "Mag", "From Home",
     "Location";
 
-foreach my $eqid (sort {$b cmp $a} keys %earthquakes) {
+foreach my $eqid (keys %earthquakes) {
+	my $time = $earthquakes{$eqid}->{properties}->{time};
+	$time *= .001;
+	my $times = strftime "%s", localtime($time);
+	#printf "eq time %s vs %s\n", $time, $times;
+	$earthquakes{$eqid}->{properties}->{times} = $times;
+}
+
+foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes{$a}->{properties}->{times} } keys %earthquakes) {
 	my $eq = $earthquakes{$eqid};
 	my $place = $eq->{properties}->{place};
 	if (defined($regex)) {
@@ -119,7 +127,7 @@ foreach my $eqid (sort {$b cmp $a} keys %earthquakes) {
 
 	my $id = $eq->{id};
 	
-	printf STDOUT "%s|%9s|%4.1f|%9s|%s\n",
+	printf STDOUT "%s|%12s|%4.1f|%9s|%s\n",
 	    $time, $id, $mag, $distance, $place;
 	if ($opt_v > 0) {
 		print STDERR "       ";
