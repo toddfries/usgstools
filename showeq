@@ -31,8 +31,9 @@ our $opt_a;     # Lattitude
 our $opt_o;     # Longitude
 our $opt_v = 0; # verbose
 our $opt_f;	# feed name
+our $opt_r;     # max range
 
-getopts('a:f:o:v');
+getopts('a:f:o:r:v');
 
 our $cachedir=$ENV{'HOME'}."/.cache/usgs.geojson";
 
@@ -114,7 +115,13 @@ foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes
 	my ($eqlon,$eqlat,$eqdepth) = @{$geom};
 
 
-	my $distance = sprintf "%0.2fmi", distance($lat, $lon, $eqlat, $eqlon);
+	my $dmiles = distance($lat, $lon, $eqlat, $eqlon);
+	if (defined($opt_r)) {
+		if ($dmiles > $opt_r) {
+			next;
+		}
+	}
+	my $distance = sprintf "%0.2fmi", $dmiles;
 	$place =~ m/^(.*[[:space:]]*)([0-9]+)km(.*)$/;
 	my ($plpre,$plkm,$plpost) = ($1,$2,$3);
 	if (defined($plkm)) {
