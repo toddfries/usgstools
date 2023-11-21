@@ -1,0 +1,2 @@
+#!/bin/ksh
+perl ./showeq -f all_hour,all_day,1.0_month -a 25.997053 -o -97.155281 "$@" Texas
