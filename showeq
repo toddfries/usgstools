@@ -32,8 +32,9 @@ our $opt_o;     # Longitude
 our $opt_v = 0; # verbose
 our $opt_f;	# feed name
 our $opt_r;     # max range
+our $opt_m;	# magnitude
 
-getopts('a:f:o:r:v');
+getopts('a:f:m:o:r:v');
 
 our $cachedir=$ENV{'HOME'}."/.cache/usgs.geojson";
 
@@ -84,7 +85,7 @@ foreach my $f (@feeds) {
 	}
 		
 }
-printf STDOUT "%24s|%12s|%4s|%9s|%s\n", "Date", "Eq Id", "Mag", "From Home",
+printf STDOUT "%24s|%12s|%4s|%4s|%9s|%s\n", "Date", "Eq Id", "Mag", "Dept", "From Home",
     "Location";
 
 foreach my $eqid (keys %earthquakes) {
@@ -107,6 +108,11 @@ foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes
 		next;
 	}
 	my $mag = $eq->{properties}->{mag};
+	if (defined($opt_m)) {
+		if ($mag < $opt_m) {
+			next;
+		}
+	}
 	my $time = $eq->{properties}->{time};
 	$time *= .001;
 	$time = strftime "%a %b %e %H:%M:%S %Y", localtime($time);
@@ -134,8 +140,8 @@ foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes
 
 	my $id = $eq->{id};
 	
-	printf STDOUT "%s|%12s|%4.1f|%9s|%s\n",
-	    $time, $id, $mag, $distance, $place;
+	printf STDOUT "%s|%12s|%4.1f|%6.1f|%9s|%s\n",
+	    $time, $id, $mag, $eqdepth, $distance, $place;
 	if ($opt_v > 0) {
 		print STDERR "       ";
 		dumpit($eq, '       ',' ');
