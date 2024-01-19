@@ -1,0 +1,2 @@
+#!/bin/ksh
+perl ./showeq -f all_hour,all_day,1.0_month -a 64.5611 -o -146.952 "$@" Alaska
