@@ -85,7 +85,7 @@ foreach my $f (@feeds) {
 	}
 		
 }
-printf STDOUT "%24s|%12s|%4s|%4s|%9s|%s\n", "Date", "Eq Id", "Mag", "Dept", "From Home",
+printf STDOUT "%24s|%12s|%5s|%6s|%9s|%s\n", "Date", "Eq Id", "Mag", "Depth", "From Home",
     "Location";
 
 foreach my $eqid (keys %earthquakes) {
@@ -140,7 +140,7 @@ foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes
 
 	my $id = $eq->{id};
 	
-	printf STDOUT "%s|%12s|%4.1f|%6.1f|%9s|%s\n",
+	printf STDOUT "%s|%12s|%4.2f|%6.2f|%9s|%s\n",
 	    $time, $id, $mag, $eqdepth, $distance, $place;
 	if ($opt_v > 0) {
 		print STDERR "       ";
