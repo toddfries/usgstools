@@ -22,6 +22,7 @@ use Math::Trig;
 use POSIX qw(strftime);
 use URI;
 use WWW::Mechanize;
+use Crypt::Digest::SHA1;
 
 use OpenBSD::Getopt;
 
@@ -29,12 +30,16 @@ my $mech = WWW::Mechanize->new(stack_depth => 0, quiet => 0);
 
 our $opt_a;     # Lattitude
 our $opt_o;     # Longitude
+our $opt_d;	# depth (altitude)
 our $opt_v = 0; # verbose
 our $opt_f;	# feed name
 our $opt_r;     # max range
 our $opt_m;	# magnitude
+our $opt_x;	# extra deets
 
-getopts('a:f:m:o:r:v');
+our $opt_G;     # generate 3d map
+
+getopts('a:d:f:m:o:r:vxG');
 
 our $cachedir=$ENV{'HOME'}."/.cache/usgs.geojson";
 
@@ -45,10 +50,19 @@ if (! -d $cachedir ) {
 	mkdir($cachedir);
 }
 
+our $lastevcall = 0;
+
 my $regex = $ARGV[0];
 
 my $lat = $opt_a;
 my $lon = $opt_o;
+my $depth = $opt_d;
+
+my $sha = Crypt::Digest::SHA1->new();
+
+if (!defined($depth)) {
+	$depth = get_altitude($lat, $lon);
+}
 
 # select your details: http://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
 
@@ -96,6 +110,8 @@ foreach my $eqid (keys %earthquakes) {
 	$earthquakes{$eqid}->{properties}->{times} = $times;
 }
 
+my @coords;
+
 foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes{$a}->{properties}->{times} } keys %earthquakes) {
 	my $eq = $earthquakes{$eqid};
 	my $place = $eq->{properties}->{place};
@@ -119,9 +135,9 @@ foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes
 
 	my $geom = $eq->{geometry}->{coordinates};
 	my ($eqlon,$eqlat,$eqdepth) = @{$geom};
+	$eqdepth = km_to_miles($eqdepth);
 
-
-	my $dmiles = distance($lat, $lon, $eqlat, $eqlon);
+	my $dmiles = haversine_distance($lat, $lon, $depth, $eqlat, $eqlon, -1*$eqdepth);
 	if (defined($opt_r)) {
 		if ($dmiles > $opt_r) {
 			next;
@@ -140,13 +156,66 @@ foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes
 
 	my $id = $eq->{id};
 	
-	printf STDOUT "%s|%12s|%4.2f|%6.2f|%9s|%s\n",
+	printf STDOUT "%s|%12s|%5.2f|%6.2f|%9s|%s\n",
 	    $time, $id, $mag, $eqdepth, $distance, $place;
+	if (defined($opt_x)) {
+		printf STDOUT " " x length($time) . " %s %s\n", 
+			$eqlat, $eqlon;
+	}
 	if ($opt_v > 0) {
 		print STDERR "       ";
 		dumpit($eq, '       ',' ');
 	}
+	my $coord = {
+		lon => $eqlon,
+		lat => $eqlat,
+		alt => -1*$eqdepth,
+		mag => $mag,
+	};
+	push @coords, $coord;
 }
+
+if (!defined($opt_G)) {
+	exit(0);
+}
+
+# Write coordinates to a temporary file
+open(my $fh, '>', 'coordinates.dat') or die "Could not open file 'coordinates.dat' $!";
+for my $coord (@coords) {
+    printf $fh "%s %s %s %s\n", $coord->{lat}, $coord->{lon}, $coord->{alt}, $coord->{mag}*5;
+}
+close $fh;
+
+# Gnuplot script template
+my $gnuplot_script_template = <<'GNU';
+set term png
+set output '3d_plot_%03d.png'
+set xlabel 'Longitude'
+set ylabel 'Latitude'
+set zlabel 'Altitude'
+set title 'Earthqukes'
+set view 60,%f
+splot 'coordinates.dat' using 1:2:3:(0):(0):(0):4 with points pt 7 ps variable
+GNU
+
+# Number of frames (angles) for rotation
+my $num_frames = 36;
+
+# Generate and execute Gnuplot scripts for each frame
+for my $i (0 .. $num_frames-1) {
+    my $angle = $i * (360 / $num_frames);
+    printf "f%d angle %f\n", $i, $angle;
+    my $gnuplot_script = sprintf($gnuplot_script_template, $i, $angle);
+    open(my $gnuplot, '|-', 'gnuplot') or die "Could not open Gnuplot: $!";
+    print $gnuplot $gnuplot_script;
+    close $gnuplot;
+}
+
+print "3D plot frames generated.\n";
+system("convert -delay 20 -loop 0 3d_plot_*.png animated.gif");
+
+
+exit(0);
 
 sub dumpit
 {
@@ -206,7 +275,7 @@ sub dumpit
 sub
 distance
 {
-	my ($lat1, $long1, $lat2, $long2, $unit) = @_;
+	my ($lat1, $long1, $lat2, $long2, $depth, $unit) = @_;
 	my $theta = $long1 - $long2;
 	my $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
 	$dist = acos($dist);
@@ -215,6 +284,10 @@ distance
 	if (!defined($unit)) {
 		$unit = "";
 	}
+	# above is surface distance, now "estimate" with Pythagorean Theorum
+	# c^2 = a^2 + b^2
+
+	$dist = sqrt( $dist * $dist + $depth * $depth );
 	if ($unit eq "K") {
 		$dist = $dist * 1.609344;
 	} elsif ($unit eq "N") {
@@ -222,6 +295,86 @@ distance
 	}
 	return ($dist);
 }
+
+sub
+haversine_distance {
+    my ($lat1, $lon1, $alt1, $lat2, $lon2, $alt2) = @_;
+
+    if ($opt_v>0) {
+	print "lat/lon/alt 1 = $lat1/$lon1/$alt1, lat/lon/alt 2 = $lat2/$lon2/$alt2\n";
+    }
+
+    my $R = 3958.8; # Earth's radius in miles
+
+    # Convert degrees to radians
+    my $dLat = deg2rad($lat2 - $lat1);
+    my $dLon = deg2rad($lon2 - $lon1);
+    my $a = sin($dLat/2) * sin($dLat/2) +
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon/2) * sin($dLon/2);
+    my $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+    my $distance = $R * $c;
+
+    # Adjust for altitude
+    $distance += sqrt($alt1**2 + $alt2**2 - 2 * $alt1 * $alt2 * cos($c));
+
+    return $distance;
+}
+
+# Example usage
+#my ($lat1, $lon1, $alt1) = (40.7128, -74.0060, 0); # New York City
+#my ($lat2, $lon2, $alt2) = (34.0522, -118.2437, 0); # Los Angeles
+#my $distance = haversine_distance($lat1, $lon1, $alt1, $lat2, $lon2, $alt2);
+#print "Distance between NYC and LA: $distance miles\n";
+
+sub get_altitude {
+	my ($lat,$lon) = @_;
+	$sha->add("${lat} ${lon}");
+	my $digest = $sha->hexdigest();
+	$sha->reset();
+	my $cachefile = $cachedir."/heights/".$digest;
+
+	my $uri;
+	my $content = "";
+	if (-f $cachefile) {
+		# if $cachefile is newer than 30d ago
+		my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+                   $atime,$mtime,$ctime,$blksize,$blocks) = stat($cachefile);
+		if ($mtime > (time()-(3600*24*30) )) {
+			open(CF,$cachefile);
+			while (<CF>) {
+				$content .= $_;
+			}
+			close(CF);
+			return $content;
+		}
+	}
+	# https://github.com/Jorl17/open-elevation/blob/master/docs/api.md
+	$uri = URI->new("https://api.open-elevation.com/api/v1/lookup?locations=$lat,$lon");
+;
+
+	my $req = HTTP::Request->new( 'GET', $uri );
+
+	eval {
+		# suggested min 1 call/sec 1000 calls/day
+		my $stime = time() - $lastevcall;
+		if ($stime < 2) {
+			sleep(1);
+		}
+		$mech->request($req);
+		$lastevcall = time();
+	};
+	if ($@) {
+		printf STDERR "request failure: %s\n", $@;
+		next;
+	}
+	$content = $mech->content();
+	open(CF, ">", $cachefile);
+	print CF $content;
+	close(CF);
+	return $content;
+}
+		
 sub getfeed {
 	my ($f) = @_;
 	my $cachefile = $cachedir."/".$f;
@@ -258,4 +411,19 @@ sub getfeed {
 	print CF $content;
 	close(CF);
 	return $content;
+}
+sub km_to_miles {
+	my ($km) = @_;
+	my $miles = $km * 0.621371;
+	return $miles;
+}
+sub miles_to_km {
+	my ($miles) = @_;
+	my $km = $miles / 0.621371;
+	return $km;
+}
+sub meters_to_miles {
+	my ($meter) = @_;
+	my $miles = $meter * 0.00062137119;
+	return $miles;
 }
