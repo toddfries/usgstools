@@ -182,7 +182,7 @@ if (!defined($opt_G)) {
 # Write coordinates to a temporary file
 open(my $fh, '>', 'coordinates.dat') or die "Could not open file 'coordinates.dat' $!";
 for my $coord (@coords) {
-    printf $fh "%s %s %s %s\n", $coord->{lat}, $coord->{lon}, $coord->{alt}, $coord->{mag}*5;
+    printf $fh "%s %s %s %s\n", $coord->{lat}, $coord->{lon}, $coord->{alt}, $coord->{mag};
 }
 close $fh;
 
@@ -190,12 +190,18 @@ close $fh;
 my $gnuplot_script_template = <<'GNU';
 set term png
 set output '3d_plot_%03d.png'
-set xlabel 'Longitude'
-set ylabel 'Latitude'
-set zlabel 'Altitude'
-set title 'Earthqukes'
+set object 1 rectangle from screen 0,0 to screen 1,1 fillcolor rgb 'black' behind
+set xlabel 'Longitude' textcolor rgb 'white'
+set ylabel 'Latitude' textcolor rgb 'white'
+set zlabel 'Altitude' textcolor rgb 'white'
+set title 'Earthqukes' textcolor rgb 'white'
+set border lc rgb 'white'
+set style line 1 linecolor rgb 'white'
+set style line 2 linecolor rgb 'white'
+set style line 3 linecolor rgb 'white'
+set style line 4 linecolor rgb 'white'
 set view 60,%f
-splot 'coordinates.dat' using 1:2:3:(0):(0):(0):4 with points pt 7 ps variable
+splot 'coordinates.dat' using 1:2:3:(0):(0):(0):4 with points pt 7 ps variable lc rgb 'white'
 GNU
 
 # Number of frames (angles) for rotation
