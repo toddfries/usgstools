@@ -59,9 +59,11 @@ my $lon = $opt_o;
 my $depth = $opt_d;
 
 my $sha = Crypt::Digest::SHA1->new();
+our $json = JSON->new->allow_nonref;
 
 if (!defined($depth)) {
-	$depth = get_altitude($lat, $lon);
+	my $aresult = $json->decode( get_altitude($lat, $lon) );
+	$depth = meters_to_miles( $aresult->{results}[0]->{elevation} );
 }
 
 # select your details: http://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
@@ -73,7 +75,6 @@ if (defined($opt_f)) {
 
 # $feed = {all,1.0,2.5,4.5,significant}_{hour,day,week,month}
 our %earthquakes;
-our $json = JSON->new->allow_nonref;
 
 foreach my $f (@feeds) {
 	# XXX cache:
@@ -111,7 +112,7 @@ foreach my $eqid (keys %earthquakes) {
 }
 
 my @coords;
-
+my $stats = { };
 foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes{$a}->{properties}->{times} } keys %earthquakes) {
 	my $eq = $earthquakes{$eqid};
 	my $place = $eq->{properties}->{place};
@@ -166,60 +167,156 @@ foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes
 		print STDERR "       ";
 		dumpit($eq, '       ',' ');
 	}
+	my $secs = strftime "%s", localtime($eq->{properties}->{time} * .001);
 	my $coord = {
 		lon => $eqlon,
 		lat => $eqlat,
 		alt => -1*$eqdepth,
 		mag => $mag,
+		secs => $secs,
 	};
 	push @coords, $coord;
+
+	for my $v (keys %{$coord}) {
+		$stats->{$v}->{max} = mymax($stats->{$v}->{max}, $coord->{$v});
+		$stats->{$v}->{min} = mymin($stats->{$v}->{min}, $coord->{$v});
+	}
 }
 
-if (!defined($opt_G)) {
-	exit(0);
+# write timing bits
+my $tcount = 256;
+my $step = ($stats->{secs}->{max} - $stats->{secs}->{min}) / $tcount;
+my $now = $stats->{secs}->{min};
+my $i = 0;
+while ($i < ($tcount+1)) {
+	open(my $fh, '>', sprintf('timed-%03d.dat',$i) );
+	for my $coord (sort { $a->{secs} <=> $b->{secs} } @coords) {
+		if ($coord->{secs} <= $now) {
+			print $fh fmt_coord($coord)."\n";
+		}
+	}
+	close($fh);
+	$i++;
+	$now += $step;
 }
+
+# Number of frames (angles) for rotation
+my $num_frames = 128;
+
+my $plot_width = 1920;
+my $plot_height = 1080;
+my $state = 'hi';
+my $coordfile = 'coordinates.dat';
 
 # Write coordinates to a temporary file
 open(my $fh, '>', 'coordinates.dat') or die "Could not open file 'coordinates.dat' $!";
 for my $coord (@coords) {
-    printf $fh "%s %s %s %s\n", $coord->{lat}, $coord->{lon}, $coord->{alt}, $coord->{mag};
+	print $fh fmt_coord($coord)."\n";
+}
+my $stfile = "data/${state}-001.txt";
+if (-f $stfile) {
+	open(my $st, '<', $stfile);
+	while(<$st>) {
+		print $fh $_;
+		my $line = $_;
+		if ($line =~ /^([\d\.\-]+)\s+([\d\.\-]+)\s+([\d\.\-]+)\s+/) {
+			my $tmp = { };
+			($tmp->{lat}, $tmp->{lon}, $tmp->{alt}) = ($1,$2,$3);
+			for my $v (keys %{$tmp}) {
+				$stats->{$v}->{max} = mymax($stats->{$v}->{max}, $tmp->{$v});
+				$stats->{$v}->{min} = mymin($stats->{$v}->{min}, $tmp->{$v});
+			}
+		} else {
+			die "unmatched: $line";
+		}
+	}
+	close($st)
 }
 close $fh;
 
 # Gnuplot script template
 my $gnuplot_script_template = <<'GNU';
-set term png
-set output '3d_plot_%03d.png'
+set term png size %d,%d
+set output '.null'
 set object 1 rectangle from screen 0,0 to screen 1,1 fillcolor rgb 'black' behind
 set xlabel 'Longitude' textcolor rgb 'white'
 set ylabel 'Latitude' textcolor rgb 'white'
 set zlabel 'Altitude' textcolor rgb 'white'
-set title 'Earthqukes' textcolor rgb 'white'
+set title 'Earthquakes' textcolor rgb 'white'
 set border lc rgb 'white'
 set style line 1 linecolor rgb 'white'
 set style line 2 linecolor rgb 'white'
 set style line 3 linecolor rgb 'white'
 set style line 4 linecolor rgb 'white'
-set view 60,%f
-splot 'coordinates.dat' using 1:2:3:(0):(0):(0):4 with points pt 7 ps variable lc rgb 'white'
-GNU
-
-# Number of frames (angles) for rotation
-my $num_frames = 36;
-
-# Generate and execute Gnuplot scripts for each frame
-for my $i (0 .. $num_frames-1) {
-    my $angle = $i * (360 / $num_frames);
-    printf "f%d angle %f\n", $i, $angle;
-    my $gnuplot_script = sprintf($gnuplot_script_template, $i, $angle);
-    open(my $gnuplot, '|-', 'gnuplot') or die "Could not open Gnuplot: $!";
-    print $gnuplot $gnuplot_script;
-    close $gnuplot;
+tcount = %d
+set view 60, 1
+do for [i=0:tcount] {
+	set xrange [%d:%d]
+	set yrange [%d:%d]
+	set zrange [%d:%d]
+        set output sprintf('3d_plot_%%03d.png', i+1)
+        splot sprintf('timed-%%03d.dat', i) using 1:2:3:4 with points pt 7 ps variable
+        replot
 }
 
-print "3D plot frames generated.\n";
-system("convert -delay 20 -loop 0 3d_plot_*.png animated.gif");
+angles = 256
+do for [i=1:angles] {
+        angle = i * 360.0 / angles
+        set view 60, angle
+        splot '%s' using 1:2:3:4 with points pt 7 ps variable
+        set output sprintf('3d_plot_%%03d.png', i + tcount)
+        replot
+}
+angles = 256
+do for [i=1:angles] {
+        angle = i * 360.0 / angles
+        set view angle, 0
+        splot '%s' using 1:2:3:4 with points pt 7 ps variable
+        set output sprintf('3d_plot_%%03d.png', i+angles+tcount)
+        replot
+}
+set output
+GNU
 
+
+#($plot_width, $plot_height) = (720, 480);
+#($plot_width, $plot_height) = (1280,720);
+
+my $gnuplot_script = sprintf($gnuplot_script_template,
+	$plot_width, $plot_height,
+	$tcount,
+	$stats->{lon}->{min},
+	$stats->{lon}->{max},
+	$stats->{lat}->{min},
+	$stats->{lat}->{max},
+	-$stats->{mag}->{max},
+	-$stats->{mag}->{min},
+	$coordfile, $coordfile);
+my $fn = '3d_plot.script';
+open(S, '>', $fn) or die "Could not open $fn: $!";
+print S $gnuplot_script;
+close(S);
+
+if (!defined($opt_G)) {
+	exit(0);
+}
+
+open(my $gnuplot, '|-', 'gnuplot') or die "Could not open Gnuplot: $!";
+print $gnuplot $gnuplot_script;
+close $gnuplot;
+
+
+print "3D plot frames generated.\n";
+my $tmpf = ".${state}-video.mp4";
+my $file = "${state}-video.mp4";
+
+#system("convert -delay 20 -loop 0 3d_plot_*.png animated.gif");
+if (system("ffmpeg -framerate 33 -i 3d_plot_%03d.png -c:v libx264 -pix_fmt yuv420p $tmpf")) {
+	if (-f $file) {
+		unlink($file);
+	}
+	rename($tmpf, $file);
+}
 
 exit(0);
 
@@ -432,4 +529,42 @@ sub meters_to_miles {
 	my ($meter) = @_;
 	my $miles = $meter * 0.00062137119;
 	return $miles;
+}
+sub mymin {
+	my ($a, $b) = @_;
+
+	if (!defined($a) && !defined($b)) {
+		return 0;
+	}
+	if (!defined($a)) {
+		return $b;
+	}
+	if (!defined($b)) {
+		return $a;
+	}
+	if ($a < $b) {
+		return $a;
+	}
+	return $b;
+}
+sub mymax {
+	my ($a, $b) = @_;
+
+	if (!defined($a) && !defined($b)) {
+		return 0;
+	}
+	if (!defined($a)) {
+		return $b;
+	}
+	if (!defined($b)) {
+		return $a;
+	}
+	if ($a > $b) {
+		return $a;
+	}
+	return $b;
+}
+sub fmt_coord {
+	my ($coord) = @_;
+	return sprintf("%s %s %s %s %d\n", $coord->{lat}, $coord->{lon}, $coord->{alt}, $coord->{mag}, $coord->{secs});
 }
