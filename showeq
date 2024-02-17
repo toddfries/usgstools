@@ -38,8 +38,9 @@ our $opt_m;	# magnitude
 our $opt_x;	# extra deets
 
 our $opt_G;     # generate 3d map
+our $opt_S;	# state(s) to include comma separated: tx,ar
 
-getopts('a:d:f:m:o:r:vxG');
+getopts('a:d:f:m:o:r:vxGS:');
 
 our $cachedir=$ENV{'HOME'}."/.cache/usgs.geojson";
 
@@ -205,7 +206,7 @@ my $num_frames = 128;
 
 my $plot_width = 1920;
 my $plot_height = 1080;
-my $state = 'hi';
+my $states = $opt_S;
 my $coordfile = 'coordinates.dat';
 
 # Write coordinates to a temporary file
@@ -213,6 +214,9 @@ open(my $fh, '>', 'coordinates.dat') or die "Could not open file 'coordinates.da
 for my $coord (@coords) {
 	print $fh fmt_coord($coord)."\n";
 }
+
+if (defined($states)) {
+for my $state (sort split(/,/,$states)) {
 my $stfile = "data/${state}-001.txt";
 if (-f $stfile) {
 	open(my $st, '<', $stfile);
@@ -231,6 +235,8 @@ if (-f $stfile) {
 		}
 	}
 	close($st)
+}
+}
 }
 close $fh;
 
@@ -307,8 +313,8 @@ close $gnuplot;
 
 
 print "3D plot frames generated.\n";
-my $tmpf = ".${state}-video.mp4";
-my $file = "${state}-video.mp4";
+my $tmpf = ".video.mp4";
+my $file = "video.mp4";
 
 #system("convert -delay 20 -loop 0 3d_plot_*.png animated.gif");
 if (system("ffmpeg -framerate 33 -i 3d_plot_%03d.png -c:v libx264 -pix_fmt yuv420p $tmpf")) {
