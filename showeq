@@ -191,7 +191,7 @@ my $now = $stats->{secs}->{min};
 my $i = 0;
 my @sortedcoords = sort { $a->{secs} <=> $b->{secs} } @coords;
 while ($i < ($tcount+1)) {
-	open(my $fh, '>', sprintf('timed-%03d.dat',$i) );
+	open(my $fh, '>', sprintf('timed-%04d.dat',$i) );
 	for my $coord (@sortedcoords) {
 		if ($coord->{secs} <= $now) {
 			print $fh fmt_coord($coord)."\n";
@@ -222,7 +222,6 @@ my $stfile = "data/${state}-001.txt";
 if (-f $stfile) {
 	open(my $st, '<', $stfile);
 	while(<$st>) {
-		print $fh $_;
 		my $line = $_;
 		if ($line =~ /^([\d\.\-]+)\s+([\d\.\-]+)\s+([\d\.\-]+)\s+/) {
 			my $tmp = { };
@@ -231,6 +230,10 @@ if (-f $stfile) {
 				$stats->{$v}->{max} = mymax($stats->{$v}->{max}, $tmp->{$v});
 				$stats->{$v}->{min} = mymin($stats->{$v}->{min}, $tmp->{$v});
 			}
+			$tmp->{alt} = ".";
+			$tmp->{mag} = ".5";
+			$tmp->{secs} = time();
+			print $fh fmt_coord($tmp)."\n";
 		} else {
 			die "unmatched: $line";
 		}
@@ -244,6 +247,7 @@ close $fh;
 # Gnuplot script template
 my $gnuplot_script_template = <<'GNU';
 set term png size %d,%d
+coordfile = '%s'
 set output '.null'
 set object 1 rectangle from screen 0,0 to screen 1,1 fillcolor rgb 'black' behind
 set xlabel 'Longitude' textcolor rgb 'white'
@@ -257,29 +261,39 @@ set style line 3 linecolor rgb 'white'
 set style line 4 linecolor rgb 'white'
 tcount = %d
 set view 60, 1
+frameoffset = 0
 do for [i=0:tcount] {
 	set xrange [%d:%d]
 	set yrange [%d:%d]
 	set zrange [%d:%d]
-        set output sprintf('3d_plot_%%03d.png', i+1)
-        splot sprintf('timed-%%03d.dat', i) using 1:2:3:4 with points pt 7 ps variable
+        set output sprintf('3d_plot_%%04d.png', i+1)
+        splot sprintf('timed-%%04d.dat', i+frameoffset) using 1:2:3:4 with points pt 7 ps variable
+	set title sprintf('Earthquakes | Frame %%d', i+frameoffset) textcolor rgb 'white'
         replot
 }
 
+set title 'Earthquakes' textcolor rgb 'white'
+
+frameoffset = frameoffset + tcount
+angles = 256
+do for [j=1:angles] {
+	i=angles-j+1
+        angle = i * 360.0 / angles
+        set view angle, 0
+        splot coordfile using 1:2:3:4 with points pt 7 ps variable
+        set output sprintf('3d_plot_%%04d.png', i+frameoffset)
+	set title sprintf('Earthquakes | Frame %%d', i+frameoffset) textcolor rgb 'white'
+        replot
+}
+
+frameoffset = frameoffset + tcount
 angles = 256
 do for [i=1:angles] {
         angle = i * 360.0 / angles
         set view 60, angle
-        splot '%s' using 1:2:3:4 with points pt 7 ps variable
-        set output sprintf('3d_plot_%%03d.png', i + tcount)
-        replot
-}
-angles = 256
-do for [i=1:angles] {
-        angle = i * 360.0 / angles
-        set view angle, 0
-        splot '%s' using 1:2:3:4 with points pt 7 ps variable
-        set output sprintf('3d_plot_%%03d.png', i+angles+tcount)
+        splot coordfile using 1:2:3:4 with points pt 7 ps variable
+        set output sprintf('3d_plot_%%04d.png', i+frameoffset)
+	set title sprintf('Earthquakes | Frame %%d', i+frameoffset) textcolor rgb 'white'
         replot
 }
 set output
@@ -296,14 +310,14 @@ foreach my $stat (("lon", "lat", "mag")) {
 
 my $gnuplot_script = sprintf($gnuplot_script_template,
 	$plot_width, $plot_height,
+	$coordfile,
 	$tcount,
 	$stats->{lon}->{min},
 	$stats->{lon}->{max},
 	$stats->{lat}->{min},
 	$stats->{lat}->{max},
 	-$stats->{mag}->{max},
-	-$stats->{mag}->{min},
-	$coordfile, $coordfile);
+	-$stats->{mag}->{min});
 my $fn = '3d_plot.script';
 open(S, '>', $fn) or die "Could not open $fn: $!";
 print S $gnuplot_script;
@@ -326,7 +340,7 @@ my $file = "video.mp4";
 if (-f $tmpf) {
 	unlink($tmpf);
 }
-if (system("ffmpeg -framerate 33 -i 3d_plot_%03d.png -c:v libx264 -pix_fmt yuv420p $tmpf")) {
+if (system("ffmpeg -framerate 33 -i 3d_plot_%04d.png -c:v libx264 -pix_fmt yuv420p $tmpf")) {
 	if (-f $file) {
 		unlink($file);
 	}
