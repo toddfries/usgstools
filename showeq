@@ -186,12 +186,13 @@ foreach my $eqid (sort {$earthquakes{$b}->{properties}->{times} cmp $earthquakes
 
 # write timing bits
 my $tcount = 256;
-my $step = ($stats->{secs}->{max} - $stats->{secs}->{min}) / $tcount;
+my $step = ($stats->{secs}->{max} - $stats->{secs}->{min} + 1) / $tcount;
 my $now = $stats->{secs}->{min};
 my $i = 0;
+my @sortedcoords = sort { $a->{secs} <=> $b->{secs} } @coords;
 while ($i < ($tcount+1)) {
 	open(my $fh, '>', sprintf('timed-%03d.dat',$i) );
-	for my $coord (sort { $a->{secs} <=> $b->{secs} } @coords) {
+	for my $coord (@sortedcoords) {
 		if ($coord->{secs} <= $now) {
 			print $fh fmt_coord($coord)."\n";
 		}
@@ -209,8 +210,8 @@ my $plot_height = 1080;
 my $states = $opt_S;
 my $coordfile = 'coordinates.dat';
 
-# Write coordinates to a temporary file
-open(my $fh, '>', 'coordinates.dat') or die "Could not open file 'coordinates.dat' $!";
+# Write coordinates to the master file
+open(my $fh, '>', $coordfile) or die "Could not open file '$coordfile' $!";
 for my $coord (@coords) {
 	print $fh fmt_coord($coord)."\n";
 }
@@ -288,6 +289,11 @@ GNU
 #($plot_width, $plot_height) = (720, 480);
 #($plot_width, $plot_height) = (1280,720);
 
+printf "Ranges for gnuplot:\n";
+foreach my $stat (("lon", "lat", "mag")) {
+	printf "%s min/max = %d/%d\n", $stat, $stats->{$stat}->{min}, $stats->{$stat}->{max};
+}
+
 my $gnuplot_script = sprintf($gnuplot_script_template,
 	$plot_width, $plot_height,
 	$tcount,
@@ -307,7 +313,7 @@ if (!defined($opt_G)) {
 	exit(0);
 }
 
-open(my $gnuplot, '|-', 'gnuplot') or die "Could not open Gnuplot: $!";
+open(my $gnuplot, '|-', 'gnuplot > gnuplot.out 2> gnuplot.err') or die "Could not open Gnuplot: $!";
 print $gnuplot $gnuplot_script;
 close $gnuplot;
 
@@ -317,6 +323,9 @@ my $tmpf = ".video.mp4";
 my $file = "video.mp4";
 
 #system("convert -delay 20 -loop 0 3d_plot_*.png animated.gif");
+if (-f $tmpf) {
+	unlink($tmpf);
+}
 if (system("ffmpeg -framerate 33 -i 3d_plot_%03d.png -c:v libx264 -pix_fmt yuv420p $tmpf")) {
 	if (-f $file) {
 		unlink($file);
@@ -572,5 +581,5 @@ sub mymax {
 }
 sub fmt_coord {
 	my ($coord) = @_;
-	return sprintf("%s %s %s %s %d\n", $coord->{lat}, $coord->{lon}, $coord->{alt}, $coord->{mag}, $coord->{secs});
+	return sprintf("%s %s %s %s %d\n", $coord->{lon}, $coord->{lat}, $coord->{alt}, $coord->{mag}, $coord->{secs});
 }
