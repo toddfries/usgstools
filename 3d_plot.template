@@ -1,0 +1,86 @@
+set term png size %d,%d
+coordfile = '%s'
+set output '.null'
+set object 1 rectangle from screen 0,0 to screen 1,1 fillcolor rgb 'black' behind
+set xlabel 'Longitude' textcolor rgb 'white'
+set ylabel 'Latitude' textcolor rgb 'white'
+set zlabel 'Altitude' textcolor rgb 'white'
+set title 'Earthquakes' textcolor rgb 'white'
+set border lc rgb 'white'
+set style line 1 linecolor rgb 'white'
+set style line 2 linecolor rgb 'white'
+set style line 3 linecolor rgb 'white'
+set style line 4 linecolor rgb 'white'
+tcount = %d
+frameoffset = 0
+myscale = 1.69
+myscale = 1.42
+myscale = 1
+i = 1
+Xmin = word(system("awk '{if(NR == ".i.") {print \$1}}' zoom.dat"),1)
+Xmax = word(system("awk '{if(NR == ".i.") {print \$2}}' zoom.dat"),1)
+Ymin = word(system("awk '{if(NR == ".i.") {print \$3}}' zoom.dat"),1)
+Ymax = word(system("awk '{if(NR == ".i.") {print \$4}}' zoom.dat"),1)
+Zmin = word(system("awk '{if(NR == ".i.") {print \$5}}' zoom.dat"),1)
+Zmax = word(system("awk '{if(NR == ".i.") {print \$6}}' zoom.dat"),1)
+set xrange [Xmin:Xmax]
+set yrange [Ymin:Ymax]
+set zrange [Zmin:Zmax]
+set view 60, 1, myscale
+do for [i=0:tcount] {
+	set output sprintf('3d_plot_%%04d.png', i+1)
+	splot sprintf('timed-%%04d.dat', i+frameoffset) using 1:2:3:4 with points pt 7 ps variable
+	set title sprintf('Earthquakes | Frame %%04d | [%%s:%%s] [%%s:%%s] [%%s:%%s]', i+frameoffset, Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) textcolor rgb 'white'
+	replot
+}
+
+frameoffset = frameoffset + tcount
+angles = tcount
+do for [j=1:angles] {
+	i=angles-j+1
+	angle = i * 360.0 / angles
+	set view angle, 0, myscale
+	splot coordfile using 1:2:3:4 with points pt 7 ps variable
+	set output sprintf('3d_plot_%%04d.png', i+frameoffset)
+	set title sprintf('Earthquakes | Frame %%04d | [%%s:%%s] [%%s:%%s] [%%s:%%s]', i+frameoffset, Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) textcolor rgb 'white'
+	replot
+}
+
+frameoffset = frameoffset + tcount
+angles = tcount
+end = 275 # XXX figure out how to end here
+ #	 view is 50 rot_x, 354 rot_z, 1.42 scale, 1 scale_z
+
+do for [i=1:angles] {
+	angle = i * 360.0 / angles
+	if ( angle > 360 ) { angle = angle - 360 }
+	set view 50, angle, myscale, 1
+	show view
+	splot coordfile using 1:2:3:4 with points pt 7 ps variable
+	set output sprintf('3d_plot_%%04d.png', i+frameoffset)
+	set title sprintf('Earthquakes | Frame %%04d | [%%s:%%s] [%%s:%%s] [%%s:%%s]', i+frameoffset, Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) textcolor rgb 'white'
+	replot
+}
+
+myscale = 1
+set view 50, 354, myscale, 1
+
+frameoffset = frameoffset + tcount
+zoom_levels = 64
+do for [i=1:zoom_levels] {
+	Xmin = word(system("awk '{if(NR == ".i.") {print \$1}}' zoom.dat"),1)
+	Xmax = word(system("awk '{if(NR == ".i.") {print \$2}}' zoom.dat"),1)
+	Ymin = word(system("awk '{if(NR == ".i.") {print \$3}}' zoom.dat"),1)
+	Ymax = word(system("awk '{if(NR == ".i.") {print \$4}}' zoom.dat"),1)
+	Zmin = word(system("awk '{if(NR == ".i.") {print \$5}}' zoom.dat"),1)
+	Zmax = word(system("awk '{if(NR == ".i.") {print \$6}}' zoom.dat"),1)
+	set xrange [Xmin:Xmax]
+	set yrange [Ymin:Ymax]
+	set zrange [Zmin:Zmax]
+	splot coordfile using 1:2:3:4 with points pt 7 ps variable
+	set output sprintf('3d_plot_%%04d.png', i+frameoffset)
+	set title sprintf('Earthquakes | Frame %%04d | [%%s:%%s] [%%s:%%s] [%%s:%%s]', i+frameoffset, Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) textcolor rgb 'white'
+	replot
+}
+
+set output
