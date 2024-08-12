@@ -296,7 +296,8 @@ foreach my $stat (("lon", "lat", "mag")) {
 my $gnuplot_script = sprintf($gnuplot_script_template,
 	$plot_width, $plot_height,
 	$coordfile,
-	$tcount);
+	$tcount,
+	$zcount);
 my $fn = '3d_plot.script';
 open(S, '>', $fn) or die "Could not open $fn: $!";
 print S $gnuplot_script;

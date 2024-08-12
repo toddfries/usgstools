@@ -66,7 +66,7 @@ myscale = 1
 set view 50, 354, myscale, 1
 
 frameoffset = frameoffset + tcount
-zoom_levels = 64
+zoom_levels = %d
 do for [i=1:zoom_levels] {
 	Xmin = word(system("awk '{if(NR == ".i.") {print \$1}}' zoom.dat"),1)
 	Xmax = word(system("awk '{if(NR == ".i.") {print \$2}}' zoom.dat"),1)
